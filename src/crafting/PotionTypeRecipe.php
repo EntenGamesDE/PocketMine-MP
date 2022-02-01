@@ -21,37 +21,35 @@
 
 declare(strict_types=1);
 
-namespace pocketmine\block;
+namespace pocketmine\crafting;
 
-use pocketmine\entity\Entity;
 use pocketmine\item\Item;
-use pocketmine\item\VanillaItems;
 
-class Cobweb extends Flowable{
+class PotionTypeRecipe implements BrewingRecipe{
 
-	public function hasEntityCollision() : bool{
-		return true;
+	public function __construct(
+		private Item $input,
+		private Item $ingredient,
+		private Item $output
+	){
+		$this->input = clone $input;
+		$this->ingredient = clone $ingredient;
+		$this->output = clone $output;
 	}
 
-	public function onEntityInside(Entity $entity) : bool{
-		$entity->resetFallDistance();
-		return true;
+	public function getInput() : Item{
+		return clone $this->input;
 	}
 
-	public function getDropsForCompatibleTool(Item $item) : array{
-		if(($item->getBlockToolType() & BlockToolType::SHEARS) !== 0){
-			return [$this->asItem()];
-		}
-		return [
-			VanillaItems::STRING()
-		];
+	public function getIngredient() : Item{
+		return clone $this->ingredient;
 	}
 
-	public function isAffectedBySilkTouch() : bool{
-		return true;
+	public function getOutput() : Item{
+		return clone $this->output;
 	}
 
-	public function blocksDirectSkyLight() : bool{
-		return true;
+	public function getResultFor(Item $input) : ?Item{
+		return $input->equals($this->input, true, false) ? $this->getOutput() : null;
 	}
 }

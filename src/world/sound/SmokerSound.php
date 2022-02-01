@@ -21,37 +21,15 @@
 
 declare(strict_types=1);
 
-namespace pocketmine\block;
+namespace pocketmine\world\sound;
 
-use pocketmine\entity\Entity;
-use pocketmine\item\Item;
-use pocketmine\item\VanillaItems;
+use pocketmine\math\Vector3;
+use pocketmine\network\mcpe\protocol\LevelSoundEventPacket;
+use pocketmine\network\mcpe\protocol\types\LevelSoundEvent;
 
-class Cobweb extends Flowable{
+final class SmokerSound implements Sound{
 
-	public function hasEntityCollision() : bool{
-		return true;
-	}
-
-	public function onEntityInside(Entity $entity) : bool{
-		$entity->resetFallDistance();
-		return true;
-	}
-
-	public function getDropsForCompatibleTool(Item $item) : array{
-		if(($item->getBlockToolType() & BlockToolType::SHEARS) !== 0){
-			return [$this->asItem()];
-		}
-		return [
-			VanillaItems::STRING()
-		];
-	}
-
-	public function isAffectedBySilkTouch() : bool{
-		return true;
-	}
-
-	public function blocksDirectSkyLight() : bool{
-		return true;
+	public function encode(Vector3 $pos) : array{
+		return [LevelSoundEventPacket::nonActorSound(LevelSoundEvent::BLOCK_SMOKER_SMOKE, $pos, false)];
 	}
 }
