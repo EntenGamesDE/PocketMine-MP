@@ -91,8 +91,6 @@ use pocketmine\network\mcpe\protocol\SubClientLoginPacket;
 use pocketmine\network\mcpe\protocol\TextPacket;
 use pocketmine\network\mcpe\protocol\types\ActorEvent;
 use pocketmine\network\mcpe\protocol\types\BlockPosition;
-use pocketmine\network\mcpe\protocol\types\entity\EntityMetadataProperties;
-use pocketmine\network\mcpe\protocol\types\entity\FloatMetadataProperty;
 use pocketmine\network\mcpe\protocol\types\inventory\ContainerIds;
 use pocketmine\network\mcpe\protocol\types\inventory\MismatchTransactionData;
 use pocketmine\network\mcpe\protocol\types\inventory\NetworkInventoryAction;
@@ -225,26 +223,27 @@ class InGamePacketHandler extends PacketHandler{
 			($gliding !== null && !$this->player->toggleGlide($gliding));
 		if((bool) $mismatch){
 			$this->player->sendData([$this->player]);
-		}elseif($packet->hasFlag(PlayerAuthInputFlags::STOP_SWIMMING) || $packet->hasFlag(PlayerAuthInputFlags::STOP_GLIDING)){
-			//TODO: HACK! workaround for a client bug where the AABB doesn't change back properly when stopping swimming or gliding
-			$this->player->sendData([$this->player], [
-				EntityMetadataProperties::BOUNDING_BOX_HEIGHT => new FloatMetadataProperty($this->player->getSize()->getHeight())
-			]);
 		}
 
 		if($packet->hasFlag(PlayerAuthInputFlags::START_JUMPING)){
 			$this->player->jump();
 		}
 
-		//TODO: this packet has WAYYYYY more useful information that we're not using
-		$this->player->handleMovement($newPos);
+		if(!$this->forceMoveSync){
+			//TODO: this packet has WAYYYYY more useful information that we're not using
+			$this->player->handleMovement($newPos);
+		}
 
 		$packetHandled = true;
 
 		$useItemTransaction = $packet->getItemInteractionData();
-		if($useItemTransaction !== null && !$this->handleUseItemTransaction($useItemTransaction->getTransactionData())){
-			$packetHandled = false;
-			$this->session->getLogger()->debug("Unhandled transaction in PlayerAuthInputPacket (type " . $useItemTransaction->getTransactionData()->getActionType() . ")");
+		if($useItemTransaction !== null){
+			if(!$this->handleUseItemTransaction($useItemTransaction->getTransactionData())){
+				$packetHandled = false;
+				$this->session->getLogger()->debug("Unhandled transaction in PlayerAuthInputPacket (type " . $useItemTransaction->getTransactionData()->getActionType() . ")");
+			}else{
+				$this->inventoryManager->syncMismatchedPredictedSlotChanges();
+			}
 		}
 
 		$blockActions = $packet->getBlockActions();
@@ -312,6 +311,8 @@ class InGamePacketHandler extends PacketHandler{
 
 		if(!$result){
 			$this->inventoryManager->syncAll();
+		}else{
+			$this->inventoryManager->syncMismatchedPredictedSlotChanges();
 		}
 		return $result;
 	}
@@ -419,6 +420,7 @@ class InGamePacketHandler extends PacketHandler{
 
 	private function handleUseItemTransaction(UseItemTransactionData $data) : bool{
 		$this->player->selectHotbarSlot($data->getHotbarSlot());
+		$this->inventoryManager->addPredictedSlotChanges($data->getActions());
 
 		switch($data->getActionType()){
 			case UseItemTransactionData::ACTION_CLICK_BLOCK:
@@ -458,13 +460,10 @@ class InGamePacketHandler extends PacketHandler{
 					if(!$this->player->consumeHeldItem()){
 						$hungerAttr = $this->player->getAttributeMap()->get(Attribute::HUNGER) ?? throw new AssumptionFailedError();
 						$hungerAttr->markSynchronized(false);
-						$this->inventoryManager->syncSlot($this->player->getInventory(), $this->player->getInventory()->getHeldItemIndex());
 					}
 					return true;
 				}
-				if(!$this->player->useHeldItem()){
-					$this->inventoryManager->syncSlot($this->player->getInventory(), $this->player->getInventory()->getHeldItemIndex());
-				}
+				$this->player->useHeldItem();
 				return true;
 		}
 
@@ -484,7 +483,6 @@ class InGamePacketHandler extends PacketHandler{
 	 * Internal function used to execute rollbacks when an action fails on a block.
 	 */
 	private function onFailedBlockAction(Vector3 $blockPos, ?int $face) : void{
-		$this->inventoryManager->syncSlot($this->player->getInventory(), $this->player->getInventory()->getHeldItemIndex());
 		if($blockPos->distanceSquared($this->player->getLocation()) < 10000){
 			$blocks = $blockPos->sidesArray();
 			if($face !== null){
@@ -508,18 +506,15 @@ class InGamePacketHandler extends PacketHandler{
 		}
 
 		$this->player->selectHotbarSlot($data->getHotbarSlot());
+		$this->inventoryManager->addPredictedSlotChanges($data->getActions());
 
 		//TODO: use transactiondata for rollbacks here
 		switch($data->getActionType()){
 			case UseItemOnEntityTransactionData::ACTION_INTERACT:
-				if(!$this->player->interactEntity($target, $data->getClickPosition())){
-					$this->inventoryManager->syncSlot($this->player->getInventory(), $this->player->getInventory()->getHeldItemIndex());
-				}
+				$this->player->interactEntity($target, $data->getClickPosition());
 				return true;
 			case UseItemOnEntityTransactionData::ACTION_ATTACK:
-				if(!$this->player->attackEntity($target)){
-					$this->inventoryManager->syncSlot($this->player->getInventory(), $this->player->getInventory()->getHeldItemIndex());
-				}
+				$this->player->attackEntity($target);
 				return true;
 		}
 
@@ -528,6 +523,7 @@ class InGamePacketHandler extends PacketHandler{
 
 	private function handleReleaseItemTransaction(ReleaseItemTransactionData $data) : bool{
 		$this->player->selectHotbarSlot($data->getHotbarSlot());
+		$this->inventoryManager->addPredictedSlotChanges($data->getActions());
 
 		//TODO: use transactiondata for rollbacks here (resending entire inventory is very wasteful)
 		switch($data->getActionType()){

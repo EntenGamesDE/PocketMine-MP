@@ -306,7 +306,7 @@ class Item implements \JsonSerializable{
 
 		$this->canPlaceOn = [];
 		$canPlaceOn = $tag->getListTag("CanPlaceOn");
-		if($canPlaceOn !== null){
+		if($canPlaceOn !== null && $canPlaceOn->getTagType() === NBT::TAG_String){
 			/** @var StringTag $entry */
 			foreach($canPlaceOn as $entry){
 				$this->canPlaceOn[$entry->getValue()] = $entry->getValue();
@@ -314,7 +314,7 @@ class Item implements \JsonSerializable{
 		}
 		$this->canDestroy = [];
 		$canDestroy = $tag->getListTag("CanDestroy");
-		if($canDestroy !== null){
+		if($canDestroy !== null && $canDestroy->getTagType() === NBT::TAG_String){
 			/** @var StringTag $entry */
 			foreach($canDestroy as $entry){
 				$this->canDestroy[$entry->getValue()] = $entry->getValue();
@@ -659,8 +659,9 @@ class Item implements \JsonSerializable{
 			->setByte("Count", Binary::signByte($this->count))
 			->setShort("Damage", $this->getMeta());
 
-		if($this->hasNamedTag()){
-			$result->setTag("tag", $this->getNamedTag());
+		$tag = $this->getNamedTag();
+		if($tag->count() > 0){
+			$result->setTag("tag", $tag);
 		}
 
 		if($slot !== -1){
