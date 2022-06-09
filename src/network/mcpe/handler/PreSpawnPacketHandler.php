@@ -17,12 +17,13 @@
  * @link http://www.pocketmine.net/
  *
  *
-*/
+ */
 
 declare(strict_types=1);
 
 namespace pocketmine\network\mcpe\handler;
 
+use pocketmine\nbt\tag\CompoundTag;
 use pocketmine\network\mcpe\cache\CraftingDataCache;
 use pocketmine\network\mcpe\cache\StaticPacketCache;
 use pocketmine\network\mcpe\convert\GlobalItemTypeDictionary;
@@ -33,6 +34,7 @@ use pocketmine\network\mcpe\protocol\RequestChunkRadiusPacket;
 use pocketmine\network\mcpe\protocol\StartGamePacket;
 use pocketmine\network\mcpe\protocol\types\BlockPosition;
 use pocketmine\network\mcpe\protocol\types\BoolGameRule;
+use pocketmine\network\mcpe\protocol\types\CacheableNbt;
 use pocketmine\network\mcpe\protocol\types\DimensionIds;
 use pocketmine\network\mcpe\protocol\types\Experiments;
 use pocketmine\network\mcpe\protocol\types\LevelSettings;
@@ -41,25 +43,20 @@ use pocketmine\network\mcpe\protocol\types\PlayerMovementType;
 use pocketmine\network\mcpe\protocol\types\SpawnSettings;
 use pocketmine\player\Player;
 use pocketmine\Server;
+use pocketmine\VersionInfo;
+use Ramsey\Uuid\Uuid;
 
 /**
  * Handler used for the pre-spawn phase of the session.
  */
 class PreSpawnPacketHandler extends ChunkRequestPacketHandler{
-
-	/** @var Server */
-	private $server;
-	/** @var Player */
-	private $player;
-
-	private InventoryManager $inventoryManager;
-
-	public function __construct(Server $server, Player $player, NetworkSession $session, InventoryManager $inventoryManager){
+	public function __construct(
+		private Server $server,
+		private Player $player,
+		NetworkSession $session,
+		private InventoryManager $inventoryManager
+	){
 		parent::__construct($session);
-
-		$this->player = $player;
-		$this->server = $server;
-		$this->inventoryManager = $inventoryManager;
 	}
 
 	public function setUp() : void{
@@ -90,6 +87,7 @@ class PreSpawnPacketHandler extends ChunkRequestPacketHandler{
 			$this->player->getOffsetPosition($location),
 			$location->pitch,
 			$location->yaw,
+			new CacheableNbt(CompoundTag::create()), //TODO: we don't care about this right now
 			$levelSettings,
 			"",
 			$this->server->getMotd(),
@@ -101,6 +99,7 @@ class PreSpawnPacketHandler extends ChunkRequestPacketHandler{
 			"",
 			false,
 			 "NetherGames v4.0",
+			Uuid::fromString(Uuid::NIL),
 			[],
 			0,
 			GlobalItemTypeDictionary::getInstance()->getDictionary($dictionaryProtocol)->getEntries()

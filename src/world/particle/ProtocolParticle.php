@@ -17,7 +17,7 @@
  * @link http://www.pocketmine.net/
  *
  *
-*/
+ */
 
 declare(strict_types=1);
 
@@ -28,8 +28,7 @@ use pocketmine\player\Player;
 
 abstract class ProtocolParticle implements Particle{
 
-	/** @var int */
-	protected $particleProtocol;
+	protected int $particleProtocol;
 
 	public function setParticleProtocol(int $particleProtocol) : void{
 		$this->particleProtocol = $particleProtocol;

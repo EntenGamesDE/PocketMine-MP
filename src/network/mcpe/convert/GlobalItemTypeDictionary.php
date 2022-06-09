@@ -17,7 +17,7 @@
  * @link http://www.pocketmine.net/
  *
  *
-*/
+ */
 
 declare(strict_types=1);
 
@@ -44,6 +44,7 @@ final class GlobalItemTypeDictionary{
 	private static function make() : self{
 		$protocolPaths = [
 			ProtocolInfo::CURRENT_PROTOCOL => "",
+			ProtocolInfo::PROTOCOL_1_18_30 => "-1.18.30",
 			ProtocolInfo::PROTOCOL_1_18_10 => "-1.18.10",
 			ProtocolInfo::PROTOCOL_1_18_0 => "-1.18.0",
 			ProtocolInfo::PROTOCOL_1_17_40 => "-1.17.40",
@@ -75,15 +76,10 @@ final class GlobalItemTypeDictionary{
 		return new self($dictionaries);
 	}
 
-	/** @var ItemTypeDictionary[] */
-	private array $dictionaries;
-
 	/**
 	 * @param ItemTypeDictionary[] $dictionaries
 	 */
-	public function __construct(array $dictionaries){
-		$this->dictionaries = $dictionaries;
-	}
+	public function __construct(private array $dictionaries){}
 
 	public static function getDictionaryProtocol(int $protocolId) : int{
 		return $protocolId;

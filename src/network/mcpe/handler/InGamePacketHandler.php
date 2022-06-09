@@ -17,7 +17,7 @@
  * @link http://www.pocketmine.net/
  *
  *
-*/
+ */
 
 declare(strict_types=1);
 
@@ -81,6 +81,8 @@ use pocketmine\network\mcpe\protocol\PlayerAuthInputPacket;
 use pocketmine\network\mcpe\protocol\PlayerHotbarPacket;
 use pocketmine\network\mcpe\protocol\PlayerInputPacket;
 use pocketmine\network\mcpe\protocol\PlayerSkinPacket;
+use pocketmine\network\mcpe\protocol\ProtocolInfo;
+use pocketmine\network\mcpe\protocol\RequestAbilityPacket;
 use pocketmine\network\mcpe\protocol\RequestChunkRadiusPacket;
 use pocketmine\network\mcpe\protocol\ServerSettingsRequestPacket;
 use pocketmine\network\mcpe\protocol\SetActorMotionPacket;
@@ -115,6 +117,7 @@ use function count;
 use function fmod;
 use function implode;
 use function in_array;
+use function is_bool;
 use function is_infinite;
 use function is_nan;
 use function json_decode;
@@ -136,9 +139,6 @@ use const JSON_THROW_ON_ERROR;
 class InGamePacketHandler extends ChunkRequestPacketHandler{
 	private const MAX_FORM_RESPONSE_DEPTH = 2; //modal/simple will be 1, custom forms 2 - they will never contain anything other than string|int|float|bool|null
 
-	/** @var Player */
-	private $player;
-
 	/** @var CraftingTransaction|null */
 	protected $craftingTransaction = null;
 
@@ -150,13 +150,12 @@ class InGamePacketHandler extends ChunkRequestPacketHandler{
 	/** @var bool */
 	public $forceMoveSync = false;
 
-	private InventoryManager $inventoryManager;
-
-	public function __construct(Player $player, NetworkSession $session, InventoryManager $inventoryManager){
+	public function __construct(
+		private Player $player,
+		NetworkSession $session,
+		private InventoryManager $inventoryManager
+	){
 		parent::__construct($session);
-
-		$this->player = $player;
-		$this->inventoryManager = $inventoryManager;
 	}
 
 	public function handleText(TextPacket $packet) : bool{
@@ -617,6 +616,10 @@ class InGamePacketHandler extends ChunkRequestPacketHandler{
 			case PlayerAction::CREATIVE_PLAYER_DESTROY_BLOCK:
 				//TODO: do we need to handle this?
 				break;
+			case PlayerAction::START_ITEM_USE_ON:
+			case PlayerAction::STOP_ITEM_USE_ON:
+				//TODO: this has no obvious use and seems only used for analytics in vanilla - ignore it
+				break;
 			default:
 				$this->session->getLogger()->debug("Unhandled/unknown player action type " . $action);
 				return false;
@@ -649,6 +652,10 @@ class InGamePacketHandler extends ChunkRequestPacketHandler{
 	}
 
 	public function handleAdventureSettings(AdventureSettingsPacket $packet) : bool{
+		if($this->session->getProtocolId() >= ProtocolInfo::PROTOCOL_1_19_0){
+			return true; //no longer used, but the client still sends it for flight changes
+		}
+
 		if($packet->targetActorUniqueId !== $this->player->getId()){
 			return false; //TODO: operators can change other people's permissions using this
 		}
@@ -986,5 +993,27 @@ class InGamePacketHandler extends ChunkRequestPacketHandler{
 	public function handleEmote(EmotePacket $packet) : bool{
 		$this->player->emote($packet->getEmoteId());
 		return true;
+	}
+
+	public function handleRequestAbility(RequestAbilityPacket $packet) : bool{
+		if($this->session->getProtocolId() < ProtocolInfo::PROTOCOL_1_19_0){
+			return false;
+		}
+
+		if($packet->getAbilityId() === RequestAbilityPacket::ABILITY_FLYING){
+			$isFlying = $packet->getAbilityValue();
+			if(!is_bool($isFlying)){
+				throw new PacketHandlingException("Flying ability should always have a bool value");
+			}
+			if($isFlying !== $this->player->isFlying()){
+				if(!$this->player->toggleFlight($isFlying)){
+					$this->session->syncAdventureSettings($this->player);
+				}
+			}
+
+			return true;
+		}
+
+		return false;
 	}
 }

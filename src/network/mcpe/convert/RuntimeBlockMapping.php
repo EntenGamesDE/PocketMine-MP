@@ -17,7 +17,7 @@
  * @link http://www.pocketmine.net/
  *
  *
-*/
+ */
 
 declare(strict_types=1);
 
@@ -47,17 +47,21 @@ final class RuntimeBlockMapping{
 	public const R12_TO_CURRENT_BLOCK_MAP_PATH = 1;
 
 	/** @var int[][] */
-	private $legacyToRuntimeMap = [];
+	private array $legacyToRuntimeMap = [];
 	/** @var int[][] */
-	private $runtimeToLegacyMap = [];
+	private array $runtimeToLegacyMap = [];
 	/** @var CompoundTag[][] */
-	private $bedrockKnownStates = [];
+	private array $bedrockKnownStates = [];
 
 	private static function make() : self{
 		$protocolPaths = [
 			ProtocolInfo::CURRENT_PROTOCOL => [
 				self::CANONICAL_BLOCK_STATES_PATH => '',
 				self::R12_TO_CURRENT_BLOCK_MAP_PATH => '',
+			],
+			ProtocolInfo::PROTOCOL_1_18_30 => [
+				self::CANONICAL_BLOCK_STATES_PATH => '-1.18.30',
+				self::R12_TO_CURRENT_BLOCK_MAP_PATH => '-1.18.30',
 			],
 			ProtocolInfo::PROTOCOL_1_18_10 => [
 				self::CANONICAL_BLOCK_STATES_PATH => '-1.18.10',
